@@ -168,32 +168,23 @@ finally {
 Write-Host ""
 
 # ===============================
-# CERTIFICATE DETAILS (via SslStream - diagnostic only)
+# CERTIFICATE DETAILS (via HttpWebRequest - diagnostic only)
 # ===============================
-Write-Host "===== CERTIFICATE DETAILS (via .NET SslStream - Diagnostic Info) =====" -ForegroundColor Yellow
+Write-Host "===== CERTIFICATE DETAILS (via .NET HttpWebRequest - Diagnostic Info) =====" -ForegroundColor Yellow
 Write-Host "NOTE: This section displays certificate details that WinHTTP COM does not expose." -ForegroundColor Cyan
 Write-Host "      The authoritative connectivity result is the WinHTTP test above." -ForegroundColor Cyan
 Write-Host ""
 
-$tcp = $null
-$ssl = $null
-
 try {
-    $Global:SslErrors = $null
-    $Global:RemoteCertObj = $null
+    $req = [System.Net.HttpWebRequest]::Create($inputUrl)
+    $req.Method = "HEAD"
+    $req.Timeout = 15000
 
-    $callback = [System.Net.Security.RemoteCertificateValidationCallback]{
-        param($sender, $certificate, $chain, $sslPolicyErrors)
-        $Global:SslErrors = $sslPolicyErrors
-        $Global:RemoteCertObj = $certificate
-        return $true
-    }
+    $resp = $req.GetResponse()
+    $resp.Close()
 
-    $tcp = New-Object System.Net.Sockets.TcpClient($hostName, $port)
-    $ssl = New-Object System.Net.Security.SslStream($tcp.GetStream(), $false, $callback)
-    $ssl.AuthenticateAsClient($hostName)
-
-    $remoteCert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($Global:RemoteCertObj)
+    $cert = $req.ServicePoint.Certificate
+    $remoteCert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($cert)
 
     Write-Host "[Server Certificate]" -ForegroundColor Green
     Write-Host "  Subject     : $($remoteCert.Subject)"
@@ -202,8 +193,6 @@ try {
     Write-Host "  Serial      : $($remoteCert.SerialNumber)"
     Write-Host "  NotBefore   : $($remoteCert.NotBefore)"
     Write-Host "  NotAfter    : $($remoteCert.NotAfter)"
-    Write-Host "  TLS Version : $($ssl.SslProtocol)"
-    Write-Host "  Cipher      : $($ssl.CipherAlgorithm) ($($ssl.CipherStrength)-bit)"
     Write-Host ""
 
     # Display certificate chain
@@ -228,33 +217,9 @@ try {
             Write-Host "  $($status.Status): $($status.StatusInformation)" -ForegroundColor Yellow
         }
     }
-
-    Write-Host ""
-
-    # Display SslPolicyErrors
-    if ($Global:SslErrors -ne [System.Net.Security.SslPolicyErrors]::None) {
-        Write-Host "[SSL Policy Errors]" -ForegroundColor Red
-        Write-Host "  $($Global:SslErrors)" -ForegroundColor Red
-
-        if ($Global:SslErrors -band [System.Net.Security.SslPolicyErrors]::RemoteCertificateChainErrors) {
-            Write-Host "  -> Certificate chain has trust issues (untrusted CA, expired cert in chain)" -ForegroundColor Yellow
-        }
-        if ($Global:SslErrors -band [System.Net.Security.SslPolicyErrors]::RemoteCertificateNameMismatch) {
-            Write-Host "  -> Certificate hostname does not match the requested hostname" -ForegroundColor Yellow
-        }
-        if ($Global:SslErrors -band [System.Net.Security.SslPolicyErrors]::RemoteCertificateNotAvailable) {
-            Write-Host "  -> Server did not present a certificate" -ForegroundColor Yellow
-        }
-    } else {
-        Write-Host "[SSL Policy] No errors - certificate is valid from .NET perspective" -ForegroundColor Green
-    }
 }
 catch {
     Write-Host "[FAIL] Could not retrieve certificate details" -ForegroundColor Red
     Write-Host "  Error: $($_.Exception.Message)"
     Write-Host "  Refer to the TCP and WinHTTP results above for connectivity diagnosis."
-}
-finally {
-    if ($ssl) { $ssl.Close() }
-    if ($tcp) { $tcp.Close() }
 }
