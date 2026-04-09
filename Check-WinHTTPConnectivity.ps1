@@ -25,6 +25,7 @@ $inputUrl = Read-Host "Please enter HTTPS URL (e.g. https://node16.xensor.ai/)"
 
 if ($inputUrl -notmatch "^https?://") {
     Write-Host "Invalid URL format. Please include http:// or https://" -ForegroundColor Red
+    Read-Host "Press Enter to exit"
     exit
 }
 
@@ -223,3 +224,9 @@ catch {
     Write-Host "  Error: $($_.Exception.Message)"
     Write-Host "  Refer to the TCP and WinHTTP results above for connectivity diagnosis."
 }
+
+# ===============================
+# DONE
+# ===============================
+Write-Host "===== DIAGNOSTIC COMPLETE =====" -ForegroundColor Yellow
+Read-Host "Press Enter to exit"
